@@ -1599,14 +1599,14 @@
 import os
 import time
 import logging
-import sys
 import re
 from datetime import datetime
-from PIL import ImageGrab, Image
 import pytesseract
 import google.generativeai as genai
 import requests
 from flask import Flask, request, jsonify
+from PIL import Image
+import sys 
 from flask_cors import CORS
 import io
 import base64
@@ -1649,7 +1649,7 @@ def test_api_endpoint():
 def test_gemini_connection():
     try:
         logging.info("Testing Gemini API connection...")
-        model = genai.GenerativeModel('gemini-pro')
+        model = genai.GenerativeModel('gemini-1.5-flash')
         response = model.generate_content("Test connection")
         logging.info("Gemini API connection successful!")
         return True
@@ -1666,8 +1666,7 @@ class ImageProcessor:
         """Extract text from image bytes"""
         try:
             img = Image.open(io.BytesIO(image_data))
-            text = pytesseract.image_to_string(img)
-            return text.strip()
+            return pytesseract.image_to_string(img).strip()
         except Exception as e:
             logging.error(f"Error extracting text: {e}")
             return ""
@@ -1745,7 +1744,10 @@ class ImageProcessor:
                 "models/gemini-1.5-flash-latest",
                 "models/gemini-2.0-flash-lite",
                 "models/gemini-2.5-flash-preview",
-                "gemini-pro"
+                "models/gemini-1.5-flash",
+#             "models/gemini-1.5-flash-latest",
+#             "models/gemini-2.0-flash-lite",
+#             "models/gemini-2.5-flash-preview"
             ]
             
             errors = []
@@ -1915,22 +1917,23 @@ class ImageProcessor:
         cleaned = re.sub(r'\n\s*\n\s*\n+', '\n\n', cleaned)
         return cleaned.strip()
 
-    def send_to_api(self, response):
+    def send_to_api(self, message):
         """Send the Gemini response to the specified API endpoint."""
         try:
             payload = {
-                "message": response,
-                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                "message": message,
+                "timestamp": datetime.now().isoformat(),
+                "sender": "System"
             }
             headers = {
                 "Content-Type": "application/json",
                 "x-api-key": API_KEY
             }
-            api_response = requests.post(API_ENDPOINT, json=payload, headers=headers, timeout=10)
-            api_response.raise_for_status()
-            logging.info(f"Successfully sent response to API: {api_response.status_code}")
+            response = requests.post(API_ENDPOINT, json=payload, headers=headers, timeout=10)
+            response.raise_for_status()
+            logging.info(f"Message sent to API: {message[:50]}...")
             return True
-        except requests.exceptions.RequestException as e:
+        except Exception as e:
             logging.error(f"Error sending response to API: {e}")
             return False
 
@@ -1942,207 +1945,289 @@ processor = ImageProcessor()
 def test_endpoint():
     return jsonify({"status": "API is running"}), 200
 
-@app.route('/take-screenshot', methods=['POST'])
-def handle_take_screenshot():
-    """Endpoint to process screenshot command"""
-    try:
-        # Verify API key
-        api_key = request.headers.get('x-api-key')
-        if api_key != API_KEY:
-            return jsonify({"error": "Invalid API key"}), 401
+# @app.route('/take-screenshot', methods=['POST'])
+# def handle_take_screenshot():
+#     """Endpoint to process screenshot command"""
+#     try:
+#         # Verify API key
+#         api_key = request.headers.get('x-api-key')
+#         if api_key != API_KEY:
+#             return jsonify({"error": "Invalid API key"}), 401
         
-        # Take screenshot
-        logging.info("Taking screenshot...")
-        image = ImageGrab.grab()
+#         # Take screenshot
+#         logging.info("Taking screenshot...")
+#         image = ImageGrab.grab()
         
-        # Convert to bytes
-        img_byte_arr = io.BytesIO()
-        image.save(img_byte_arr, format='PNG')
-        img_data = img_byte_arr.getvalue()
+#         # Convert to bytes
+#         img_byte_arr = io.BytesIO()
+#         image.save(img_byte_arr, format='PNG')
+#         img_data = img_byte_arr.getvalue()
         
-        # Extract text
-        text = processor.extract_text(img_data)
+#         # Extract text
+#         text = processor.extract_text(img_data)
         
-        # Send to message website
-        success = processor.send_to_api(f"Extracted text: {text}")
+#         # Send to message website
+#         success = processor.send_to_api(f"Extracted text: {text}")
         
-        return jsonify({
-            "status": "success",
-            "action": "take-screenshot",
-            "text_extracted": text[:500] + "..." if text else "",
-            "api_response": "Sent to message website" if success else "Failed to send"
-        }), 200
+#         return jsonify({
+#             "status": "success",
+#             "action": "take-screenshot",
+#             "text_extracted": text[:500] + "..." if text else "",
+#             "api_response": "Sent to message website" if success else "Failed to send"
+#         }), 200
         
-    except Exception as e:
-        logging.error(f"Error processing take-screenshot: {e}")
-        return jsonify({"error": str(e)}), 500
+#     except Exception as e:
+#         logging.error(f"Error processing take-screenshot: {e}")
+#         return jsonify({"error": str(e)}), 500
 
-@app.route('/send-solution', methods=['POST'])
-def handle_send_solution():
-    """Endpoint to process send-solution command"""
-    try:
-        # Verify API key
-        api_key = request.headers.get('x-api-key')
-        if api_key != API_KEY:
-            return jsonify({"error": "Invalid API key"}), 401
+# @app.route('/send-solution', methods=['POST'])
+# def handle_send_solution():
+#     """Endpoint to process send-solution command"""
+#     try:
+#         # Verify API key
+#         api_key = request.headers.get('x-api-key')
+#         if api_key != API_KEY:
+#             return jsonify({"error": "Invalid API key"}), 401
         
-        # Get image data from request
-        if 'image' not in request.files:
-            return jsonify({"error": "No image provided"}), 400
+#         # Get image data from request
+#         if 'image' not in request.files:
+#             return jsonify({"error": "No image provided"}), 400
             
-        image_file = request.files['image']
-        image_data = image_file.read()
+#         image_file = request.files['image']
+#         image_data = image_file.read()
         
-        # Extract text
-        text = processor.extract_text(image_data)
-        if not text:
-            return jsonify({"error": "No text extracted from image"}), 400
+#         # Extract text
+#         text = processor.extract_text(image_data)
+#         if not text:
+#             return jsonify({"error": "No text extracted from image"}), 400
         
-        # Check if it's a meaningful question and if C++ is requested
-        is_meaningful, is_cpp = processor.is_meaningful_question(text)
-        if not is_meaningful:
-            return jsonify({"error": "No meaningful question detected"}), 400
+#         # Check if it's a meaningful question and if C++ is requested
+#         is_meaningful, is_cpp = processor.is_meaningful_question(text)
+#         if not is_meaningful:
+#             return jsonify({"error": "No meaningful question detected"}), 400
         
-        # Get Gemini response
-        gemini_response = processor.get_gemini_response(text, is_cpp)
+#         # Get Gemini response
+#         gemini_response = processor.get_gemini_response(text, is_cpp)
         
-        # Format and send response
-        formatted_response = processor.format_response(gemini_response, is_cpp)
-        success = processor.send_to_api(formatted_response)
+#         # Format and send response
+#         formatted_response = processor.format_response(gemini_response, is_cpp)
+#         success = processor.send_to_api(formatted_response)
         
-        return jsonify({
-            "status": "success",
-            "action": "send-solution",
-            "gemini_response": formatted_response[:500] + "..." if formatted_response else "",
-            "api_response": "Sent to message website" if success else "Failed to send"
-        }), 200
+#         return jsonify({
+#             "status": "success",
+#             "action": "send-solution",
+#             "gemini_response": formatted_response[:500] + "..." if formatted_response else "",
+#             "api_response": "Sent to message website" if success else "Failed to send"
+#         }), 200
         
-    except Exception as e:
-        logging.error(f"Error processing send-solution: {e}")
-        return jsonify({"error": str(e)}), 500
+#     except Exception as e:
+#         logging.error(f"Error processing send-solution: {e}")
+#         return jsonify({"error": str(e)}), 500
 
-@app.route('/send-extracted-text', methods=['POST'])
-def handle_send_extracted_text():
-    """Endpoint to process send-extracted-text command"""
-    try:
-        # Verify API key
-        api_key = request.headers.get('x-api-key')
-        if api_key != API_KEY:
-            return jsonify({"error": "Invalid API key"}), 401
+# @app.route('/send-extracted-text', methods=['POST'])
+# def handle_send_extracted_text():
+#     """Endpoint to process send-extracted-text command"""
+#     try:
+#         # Verify API key
+#         api_key = request.headers.get('x-api-key')
+#         if api_key != API_KEY:
+#             return jsonify({"error": "Invalid API key"}), 401
         
-        # Get image data from request
-        if 'image' not in request.files:
-            return jsonify({"error": "No image provided"}), 400
+#         # Get image data from request
+#         if 'image' not in request.files:
+#             return jsonify({"error": "No image provided"}), 400
             
-        image_file = request.files['image']
-        image_data = image_file.read()
+#         image_file = request.files['image']
+#         image_data = image_file.read()
         
-        # Extract text
-        text = processor.extract_text(image_data)
-        if not text:
-            return jsonify({"error": "No text extracted from image"}), 400
+#         # Extract text
+#         text = processor.extract_text(image_data)
+#         if not text:
+#             return jsonify({"error": "No text extracted from image"}), 400
         
-        # Send to message website
-        success = processor.send_to_api(text)
+#         # Send to message website
+#         success = processor.send_to_api(text)
         
-        return jsonify({
-            "status": "success",
-            "action": "send-extracted-text",
-            "text_extracted": text[:500] + "..." if text else "",
-            "api_response": "Sent to message website" if success else "Failed to send"
-        }), 200
+#         return jsonify({
+#             "status": "success",
+#             "action": "send-extracted-text",
+#             "text_extracted": text[:500] + "..." if text else "",
+#             "api_response": "Sent to message website" if success else "Failed to send"
+#         }), 200
         
-    except Exception as e:
-        logging.error(f"Error processing send-extracted-text: {e}")
-        return jsonify({"error": str(e)}), 500
+#     except Exception as e:
+#         logging.error(f"Error processing send-extracted-text: {e}")
+#         return jsonify({"error": str(e)}), 500
 
-@app.route('/process-command', methods=['POST'])
-def process_command():
-    """Unified endpoint for all commands"""
-    try:
-        # Verify API key
-        api_key = request.headers.get('x-api-key')
-        if api_key != API_KEY:
-            return jsonify({"error": "Invalid API key"}), 401
+# @app.route('/process-command', methods=['POST'])
+# def process_command():
+#     """Unified endpoint for all commands"""
+#     try:
+#         # Verify API key
+#         api_key = request.headers.get('x-api-key')
+#         if api_key != API_KEY:
+#             return jsonify({"error": "Invalid API key"}), 401
         
-        # Get command from request
-        command = request.json.get('command')
-        if not command:
-            return jsonify({"error": "No command provided"}), 400
+#         # Get command from request
+#         command = request.json.get('command')
+#         if not command:
+#             return jsonify({"error": "No command provided"}), 400
         
-        # Process based on command type
-        if command == 'take-screenshot':
-            # Take screenshot
-            image = ImageGrab.grab()
-            img_byte_arr = io.BytesIO()
-            image.save(img_byte_arr, format='PNG')
-            img_data = img_byte_arr.getvalue()
+#         # Process based on command type
+#         if command == 'take-screenshot':
+#             # Take screenshot
+#             image = ImageGrab.grab()
+#             img_byte_arr = io.BytesIO()
+#             image.save(img_byte_arr, format='PNG')
+#             img_data = img_byte_arr.getvalue()
             
-            # Extract text
-            text = processor.extract_text(img_data)
-            processor.send_to_api(f"Extracted text: {text}")
+#             # Extract text
+#             text = processor.extract_text(img_data)
+#             processor.send_to_api(f"Extracted text: {text}")
             
-            return jsonify({
-                "status": "success",
-                "command": command,
-                "result": "Screenshot taken and text extracted"
-            })
+#             return jsonify({
+#                 "status": "success",
+#                 "command": command,
+#                 "result": "Screenshot taken and text extracted"
+#             })
             
-        elif command == 'send-solution':
-            # Get image data
-            image_data = base64.b64decode(request.json.get('image_data'))
-            if not image_data:
-                return jsonify({"error": "No image data provided"}), 400
+#         elif command == 'send-solution':
+#             # Get image data
+#             image_data = base64.b64decode(request.json.get('image_data'))
+#             if not image_data:
+#                 return jsonify({"error": "No image data provided"}), 400
                 
-            # Extract text and get solution
-            text = processor.extract_text(image_data)
-            _, is_cpp = processor.is_meaningful_question(text)
-            response = processor.get_gemini_response(text, is_cpp)
-            formatted = processor.format_response(response, is_cpp)
-            processor.send_to_api(formatted)
+#             # Extract text and get solution
+#             text = processor.extract_text(image_data)
+#             _, is_cpp = processor.is_meaningful_question(text)
+#             response = processor.get_gemini_response(text, is_cpp)
+#             formatted = processor.format_response(response, is_cpp)
+#             processor.send_to_api(formatted)
             
-            return jsonify({
-                "status": "success",
-                "command": command,
-                "result": "Solution generated and sent"
-            })
+#             return jsonify({
+#                 "status": "success",
+#                 "command": command,
+#                 "result": "Solution generated and sent"
+#             })
             
-        elif command == 'send-extracted-text':
-            # Get image data
-            image_data = base64.b64decode(request.json.get('image_data'))
-            if not image_data:
-                return jsonify({"error": "No image data provided"}), 400
+#         elif command == 'send-extracted-text':
+#             # Get image data
+#             image_data = base64.b64decode(request.json.get('image_data'))
+#             if not image_data:
+#                 return jsonify({"error": "No image data provided"}), 400
                 
-            # Extract and send text
-            text = processor.extract_text(image_data)
-            processor.send_to_api(text)
+#             # Extract and send text
+#             text = processor.extract_text(image_data)
+#             processor.send_to_api(text)
             
+#             return jsonify({
+#                 "status": "success",
+#                 "command": command,
+#                 "result": "Extracted text sent"
+#             })
+            
+#         else:
+#             return jsonify({"error": "Invalid command"}), 400
+            
+#     except Exception as e:
+#         logging.error(f"Error processing command: {e}")
+#         return jsonify({"error": str(e)}), 500
+# ADD THIS INSTEAD:
+
+@app.route('/process-action', methods=['POST'])
+def handle_action():
+    """Unified endpoint for all actions"""
+    try:
+        # Verify API key
+        api_key = request.headers.get('x-api-key')
+        if api_key != API_KEY:
+            return jsonify({"error": "Invalid API key"}), 401
+        
+        # Get JSON data
+        data = request.json
+        if not data:
+            return jsonify({"error": "No data provided"}), 400
+        
+        action = data.get('action')
+        if not action:
+            return jsonify({"error": "No action specified"}), 400
+        
+        # Handle different actions
+        if action in ['screenshot', 'solution', 'extract-text']:
+            # These actions require an image
+            if 'image' not in data:
+                return jsonify({"error": "No image provided"}), 400
+                
+            try:
+                # Decode base64 image (remove data URL prefix if present)
+                image_data = data['image']
+                if image_data.startswith('data:image'):
+                    image_data = image_data.split(',', 1)[1]
+                image_bytes = base64.b64decode(image_data)
+            except Exception as e:
+                logging.error(f"Image decode error: {e}")
+                return jsonify({"error": "Invalid image data"}), 400
+            
+            # Extract text from image
+            text = processor.extract_text(image_bytes)
+            if not text:
+                return jsonify({"error": "No text extracted from image"}), 400
+            
+            # Action-specific processing
+            if action == 'screenshot':
+                # For screenshot, just send extracted text
+                message = f"📸 Screenshot captured:\n{text}"
+                success = processor.send_to_api(message)
+                return jsonify({
+                    "status": "success",
+                    "action": "screenshot",
+                    "message": "Screenshot processed"
+                })
+                
+            elif action == 'solution':
+                # Check if meaningful question
+                is_meaningful, is_cpp = processor.is_meaningful_question(text)
+                if not is_meaningful:
+                    return jsonify({
+                        "status": "success",
+                        "action": "solution",
+                        "message": "No meaningful question detected"
+                    })
+                
+                # Get Gemini response
+                gemini_response = processor.get_gemini_response(text, is_cpp)
+                formatted_response = processor.format_response(gemini_response, is_cpp)
+                success = processor.send_to_api(formatted_response)
+                return jsonify({
+                    "status": "success",
+                    "action": "solution",
+                    "message": "Solution generated and sent"
+                })
+                
+            elif action == 'extract-text':
+                # For extract-text, send the extracted text
+                success = processor.send_to_api(f"📝 Extracted text:\n{text}")
+                return jsonify({
+                    "status": "success",
+                    "action": "extract-text",
+                    "message": "Text extracted and sent"
+                })
+                
+        elif action == 'audio':
+            # Audio action (placeholder implementation)
+            success = processor.send_to_api("🔊 Audio playback requested")
             return jsonify({
                 "status": "success",
-                "command": command,
-                "result": "Extracted text sent"
+                "action": "audio",
+                "message": "Audio request processed"
             })
             
         else:
-            return jsonify({"error": "Invalid command"}), 400
+            return jsonify({"error": "Invalid action specified"}), 400
             
     except Exception as e:
-        logging.error(f"Error processing command: {e}")
+        logging.error(f"Error processing action: {e}")
         return jsonify({"error": str(e)}), 500
-
 if __name__ == "__main__":
-    # Verify services
-    if not test_gemini_connection():
-        logging.error("Gemini API connection failed. Exiting.")
-        sys.exit(1)
-        
-    if not test_api_endpoint():
-        logging.error("Message API connection failed. Exiting.")
-        sys.exit(1)
-    
-    # Get port from environment variable or use default
     port = int(os.environ.get('PORT', 5000))
-    
-    # Start Flask app
-    logging.info(f"Starting API server on port {port}")
     app.run(host='0.0.0.0', port=port)
