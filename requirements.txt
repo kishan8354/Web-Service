@@ -6,3 +6,4 @@ google-generativeai
 requests
 python-dotenv
 pytesseract
+gunicorn==20.1.0  # Or the latest version
