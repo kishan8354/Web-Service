@@ -1,0 +1,8 @@
+flask
+flask-cors
+pillow
+pytesseract
+google-generativeai
+requests
+python-dotenv
+pytesseract
